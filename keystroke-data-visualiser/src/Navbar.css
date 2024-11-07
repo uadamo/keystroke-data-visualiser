@@ -1,0 +1,23 @@
+.navbar {
+  height: 100%;
+  width: 15rem;
+  display: flex;
+  flex-direction: column;
+  row-gap: 1rem;
+  padding: 10px;
+}
+.navbar-item {
+  height: 3rem;
+  width: 100%;
+  border-radius: 2px;
+  text-decoration: none;
+  border: 1px solid black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: medium;
+  color: black;
+}
+.navbar-item:hover {
+  background-color: rgb(246, 246, 246);
+}
