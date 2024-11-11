@@ -18,6 +18,10 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
   const task2cref = query(ref(db, `task2c/user-${id}`));
   const task3ref = query(ref(db, `task3/user-${id}`));
 
+  const fetchLetterProximityData = () => {
+    // to do
+  };
+
   const fetchTypingSpeedData = (taskData: Task[], sessionNumber: number) => {
     const iterationValues: TaskIteration[] = Object.values(
       taskData[`session-${sessionNumber}`]
@@ -32,7 +36,15 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
       const keyDownArray = iterationValue.keystroke_list.filter(
         (keystroke) => keystroke.type === "keydown"
       );
+      const totalWords = keyDownArray.length / 5;
+      const minutes =
+        (keyDownArray[keyDownArray.length - 1].globalTimeStamp -
+          keyDownArray[0].globalTimeStamp) /
+        60000;
+
+      typingSpeedArray[i] = totalWords / minutes;
     }
+    return typingSpeedArray;
   };
 
   const fetchAccuracy = (taskData: Task[], sessionNumber: number) => {
@@ -232,7 +244,20 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
   };
 
   const fetchTask = async () => {
+    const task1vector = new Array([]);
+    const task2avector = new Array([]);
+    const task2bvector = new Array([]);
+    const task2cvector = new Array([]);
+    // slightly different vector, with free typing speed - in
+    const task3vector = new Array([]);
+
+    // task references
     const task1Snapshot = await get(task1ref);
+    const task2aSnapshot = await get(task2cref);
+    const task2bSnapshot = await get(task2cref);
+    const task2cSnapshot = await get(task2cref);
+
+    // fetchtask() should take features for easy extraction for downloading files
 
     // subvector for task 1
     if (task1Snapshot) {
@@ -258,9 +283,13 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
       const session2Task1KeyPreference = fetchKeyPreferenceData(task1Data, 1);
       const session3Task1KeyPreference = fetchKeyPreferenceData(task1Data, 2);
 
-      const session1Task1BackspaceRatioArray = fetchAccuracy(task1Data, 0);
-      const session2Task1BackspaceRatioArray = fetchAccuracy(task1Data, 1);
-      const session3Task1BackspaceRatioArray = fetchAccuracy(task1Data, 2);
+      const session1Task1AccuracyArray = fetchAccuracy(task1Data, 0);
+      const session2Task1AccuracyArray = fetchAccuracy(task1Data, 1);
+      const session3Task1AccuracyArray = fetchAccuracy(task1Data, 2);
+
+      const session1Task1TypingSpeedArray = fetchTypingSpeedData(task1Data, 0);
+      const session2Task1TypingSpeedArray = fetchTypingSpeedData(task1Data, 1);
+      const session3Task1TypingSpeedArray = fetchTypingSpeedData(task1Data, 2);
       // the final feature vectors for each user
 
       const task1TemporalFeatureVector = session1Task1TemporalData
@@ -275,32 +304,33 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
         .concat(session2Task1KeyPreference)
         .concat(session3Task1KeyPreference);
 
-      const task1BackspaceFeatureVector = session1Task1BackspaceRatioArray
-        .concat(session2Task1BackspaceRatioArray)
-        .concat(session3Task1BackspaceRatioArray);
+      const task1BackspaceFeatureVector = session1Task1AccuracyArray
+        .concat(session2Task1AccuracyArray)
+        .concat(session3Task1AccuracyArray);
+
+      const task1TypingSpeedFeatureVector = session1Task1TypingSpeedArray
+        .concat(session2Task1TypingSpeedArray)
+        .concat(session3Task1TypingSpeedArray);
       // merge all for a feature vector
       //console.log(task1TemporalFeatureVector);
       //console.log(task1ReactionTimeFeatureVector);
       // setTask1Data(task1TemporalFeatureVector);
       // console.log(task1KeyPreferenceFeatureVector);
-      console.log(task1BackspaceFeatureVector);
+      //console.log(task1BackspaceFeatureVector);
+      console.log(task1TypingSpeedFeatureVector);
     }
 
     // subvector for task 2a
-    const task2aSnapshot = await get(task2aref);
     if (task2aSnapshot) {
       // setTask2aData(task2aSnapshot.val());
     }
 
     // subvector for task 2b
-    const task2bSnapshot = await get(task2bref);
     if (task2bSnapshot) {
       // setTask2bData(task2bSnapshot.val());
     }
 
     // subvector for task 2c
-
-    const task2cSnapshot = await get(task2cref);
     if (task2cSnapshot) {
       // setTask2cData(task2cSnapshot.val());
     }
