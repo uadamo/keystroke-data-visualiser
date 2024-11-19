@@ -13,7 +13,9 @@ type KeyUp = {
 };
 
 type KeyDown = {
+  altKey: boolean; // false;
   ctrlKey: boolean; // false;
+  code: string; // "KeyQ";
   detail: number; // 0;
   eventName: "keyDown";
   globalTimeStamp: number; // 1728649006911;

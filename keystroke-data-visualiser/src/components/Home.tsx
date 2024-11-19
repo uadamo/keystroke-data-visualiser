@@ -1,22 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { getDatabase, ref, query, get } from "firebase/database";
-import { User, UserProfile } from "../types/Users";
+import { UserProfile } from "../types/Users";
 
 import { app } from "../firebase";
 import "./section.css";
 import { Task, TaskIteration } from "../types/Tasks";
 
-interface UserTaskRecordProps {
-  id: string;
-}
-
-const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
+const Home = () => {
   const db = getDatabase(app);
-  const task1ref = query(ref(db, `task1/user-${id}`));
-  const task2aref = query(ref(db, `task2a/user-${id}`));
-  const task2bref = query(ref(db, `task2b/user-${id}`));
-  const task2cref = query(ref(db, `task2c/user-${id}`));
-  const task3ref = query(ref(db, `task3/user-${id}`));
+  const userRef = query(ref(db, `users`));
+  // slightly different vector, with free typing speed - in
+  const task3vector: any[] = [];
 
   const fetchLetterProximityData = () => {
     // to do
@@ -29,7 +23,7 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
     const filteredIterations = iterationValues.filter(
       (value) => value.keystroke_list.length > 10
     );
-    const typingSpeedArray = new Array(10);
+    const typingSpeedArray: number[] = [];
     for (let i = 0; i < 10; i++) {
       //@ts-ignore
       const iterationValue: TaskIteration = filteredIterations.at(i);
@@ -48,7 +42,7 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
   };
 
   const fetchAccuracy = (taskData: Task[], sessionNumber: number) => {
-    const accuracyArray = new Array(10);
+    const accuracyArray: number[] = [];
     const iterationValues: TaskIteration[] = Object.values(
       taskData[`session-${sessionNumber}`]
     );
@@ -81,9 +75,11 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
 
   // task non-specific (but not for task 2a) shift-left, shift right, caps lock counter (caps lock used? yes or no)
   const fetchKeyPreferenceData = (taskData: Task[], sessionNumber: number) => {
-    let shiftLeftRatioArray = new Array(10);
-    let shiftRightRatioArray = new Array(10);
-    let capsLockCountArray = new Array(10);
+    let shiftLeftRatioArray: number[] = [];
+    let shiftRightRatioArray: number[] = [];
+    let altLeftRatioArray: number[] = [];
+    let altRightRatioArray: number[] = [];
+    let capsLockCountArray: number[] = [];
 
     const iterationValues: TaskIteration[] = Object.values(
       taskData[`session-${sessionNumber}`]
@@ -103,6 +99,9 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
       let shiftRightCount = 0;
       let capsLockCount = 0;
       let shiftCount = 0;
+      let altLeftCount = 0;
+      let altRightCount = 0;
+      let altCount = 0;
       for (let keystroke = 0; keystroke < keyDownArray.length; keystroke++) {
         try {
           if (keyDownArray[keystroke].key === "Shift") {
@@ -112,6 +111,15 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
             }
             if (keyDownArray[keystroke].location === 2) {
               shiftRightCount++;
+            }
+          }
+          if (keyDownArray[keystroke].key === "Alt") {
+            altCount++;
+            if (keyDownArray[keystroke].location === 1) {
+              altLeftCount++;
+            }
+            if (keyDownArray[keystroke].location === 2) {
+              altRightCount++;
             }
           }
           if (keyDownArray[keystroke].key === "CapsLock") {
@@ -127,14 +135,19 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
           shiftCount > 0 ? shiftLeftCount / shiftCount : 0;
         shiftRightRatioArray[i] =
           shiftCount > 0 ? shiftRightCount / shiftCount : 0;
+        altLeftRatioArray[i] = altCount > 0 ? altLeftCount / altCount : 0;
+        altRightRatioArray[i] = altCount > 0 ? altRightCount / altCount : 0;
         capsLockCountArray[i] = capsLockCount;
       } catch (e) {
         break;
       }
     }
+    // not enough alt data
     return shiftLeftRatioArray
       .concat(shiftRightRatioArray)
       .concat(capsLockCountArray);
+    // .concat(altLeftRatioArray)
+    // .concat(altRightRatioArray);
   };
 
   // task non-specific creation time fetch
@@ -142,7 +155,7 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
     taskData: Task[],
     sessionNumber: number
   ) => {
-    const reactionTimeArray = new Array(10);
+    const reactionTimeArray: number[] = [];
 
     const iterationValues: TaskIteration[] = Object.values(
       taskData[`session-${sessionNumber}`]
@@ -176,13 +189,18 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
   };
 
   // task specific temporal data fetch
-  const fetchTask1TemporalData = (taskData: Task[], sessionNumber: number) => {
-    const downUpTimes = new Array(10);
-    const upDownTimes = new Array(10);
+  const fetchTaskTemporalData = async (
+    taskData: Task[],
+    sessionNumber: number
+  ) => {
+    const downUpTimes: number[] = [];
+    const upDownTimes: number[] = [];
 
     const iterationValues: TaskIteration[] = Object.values(
       taskData[`session-${sessionNumber}`]
     );
+
+    // just a measure to exclude arrays that have a very small amount of keystrokes due to inconsistencies
     const filteredIterations = iterationValues.filter(
       (value) => value.keystroke_list.length > 10
     );
@@ -200,8 +218,16 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
             keystroke.globalTimeStamp >
             iterationValue.start_time + iterationValue.reaction_latency
         )
+        .filter(
+          (keystroke) =>
+            !keystroke.altKey ||
+            !keystroke.metaKey ||
+            !keystroke.ctrlKey ||
+            !keystroke.shiftKey
+        )
         .filter((keystroke) => keystroke.key !== "Shift")
         .filter((keystroke) => keystroke.key !== "CapsLock")
+        .filter((keystroke) => keystroke.key !== "Control")
         .sort(
           (keystroke1, keystroke2) =>
             keystroke1.globalTimeStamp - keystroke2.globalTimeStamp
@@ -213,8 +239,16 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
             keystroke.timestamp >
             iterationValue.start_time + iterationValue.reaction_latency
         )
+        .filter(
+          (keystroke) =>
+            !keystroke.altKey ||
+            !keystroke.metaKey ||
+            !keystroke.ctrlKey ||
+            !keystroke.shiftKey
+        )
         .filter((keystroke) => keystroke.key !== "Shift")
         .filter((keystroke) => keystroke.key !== "CapsLock")
+        .filter((keystroke) => keystroke.key !== "Control")
         .sort(
           (keystroke1, keystroke2) =>
             keystroke1.timestamp - keystroke2.timestamp
@@ -222,18 +256,32 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
 
       const arrayLengthSession = Math.min(
         keyDownArray.length,
-        keyUpArray.length,
-        10
+        keyUpArray.length
       );
 
       for (let keystroke = 0; keystroke < arrayLengthSession; keystroke++) {
         try {
-          downUpTimes[keystroke] =
-            keyUpArray[keystroke].timestamp -
-            keyDownArray[keystroke].globalTimeStamp;
-          upDownTimes[keystroke] =
-            keyDownArray[keystroke + 1].globalTimeStamp -
-            keyUpArray[keystroke].timestamp;
+          // issue here
+          // if (keyUpArray[keystroke].code !== keyDownArray[keystroke].code) {
+          //   console.log(
+          //     keyDownArray[keystroke].code + " " + keyUpArray[keystroke].code
+          //   );
+          // }
+          if (
+            keyUpArray[keystroke].timestamp >
+              keyDownArray[keystroke].globalTimeStamp &&
+            keyUpArray[keystroke].code === keyDownArray[keystroke].code &&
+            keyUpArray[keystroke + 1].code === keyDownArray[keystroke + 1].code
+          ) {
+            downUpTimes.push(
+              keyUpArray[keystroke].timestamp -
+                keyDownArray[keystroke].globalTimeStamp
+            );
+            upDownTimes.push(
+              keyDownArray[keystroke + 1].globalTimeStamp -
+                keyUpArray[keystroke].timestamp
+            );
+          }
         } catch (e) {
           // correct later
           break;
@@ -243,115 +291,155 @@ const UserTaskRecord = ({ id }: UserTaskRecordProps) => {
     return downUpTimes.concat(upDownTimes);
   };
 
-  const fetchTask = async () => {
-    const task1vector = new Array([]);
-    const task2avector = new Array([]);
-    const task2bvector = new Array([]);
-    const task2cvector = new Array([]);
-    // slightly different vector, with free typing speed - in
-    const task3vector = new Array([]);
+  interface fetchTaskProps {
+    id: string;
+    temporal?: boolean;
+    reaction?: boolean;
+    keyPreference?: boolean;
+    accuracy?: boolean;
+    typingSpeed?: boolean;
+    freeTypingSpeed?: boolean;
+    specificKeyProximity?: boolean;
+  }
 
-    // task references
+  const fetchTask = async ({
+    id,
+    temporal,
+    reaction,
+    keyPreference,
+    accuracy,
+    typingSpeed,
+    freeTypingSpeed,
+    specificKeyProximity,
+  }: fetchTaskProps) => {
+    const db = getDatabase(app);
+
+    const task1ref = query(ref(db, `task1/user-${id}`));
+    const task2aref = query(ref(db, `task2a/user-${id}`));
+    const task2bref = query(ref(db, `task2b/user-${id}`));
+    const task2cref = query(ref(db, `task2c/user-${id}`));
+    const task3ref = query(ref(db, `task3/user-${id}`));
+
     const task1Snapshot = await get(task1ref);
-    const task2aSnapshot = await get(task2cref);
-    const task2bSnapshot = await get(task2cref);
+    const task2aSnapshot = await get(task2aref);
+    const task2bSnapshot = await get(task2bref);
     const task2cSnapshot = await get(task2cref);
+    const task3Snapshot = await get(task3ref);
 
+    const task1vector: any[] = [];
+    const task2avector: any[] = [];
+    const task2bvector: any[] = [];
+    const task2cvector: any[] = [];
     // fetchtask() should take features for easy extraction for downloading files
 
     // subvector for task 1
     if (task1Snapshot) {
       const task1Data: Task[] = task1Snapshot.val();
-
-      // arrays for temporal features
-
-      // task 1
-      const session1Task1TemporalData = fetchTask1TemporalData(task1Data, 0);
-      const session2Task1TemporalData = fetchTask1TemporalData(task1Data, 1);
-      const session3Task1TemporalData = fetchTask1TemporalData(task1Data, 2);
-
-      // arrays for non-temporal features:
-      // reaction time:
-
-      // task 1
-
-      const session1Task1ReactionTime = fetchTaskReactionTimeData(task1Data, 0);
-      const session2Task1ReactionTime = fetchTaskReactionTimeData(task1Data, 1);
-      const session3Task1ReactionTime = fetchTaskReactionTimeData(task1Data, 2);
-
-      const session1Task1KeyPreference = fetchKeyPreferenceData(task1Data, 0);
-      const session2Task1KeyPreference = fetchKeyPreferenceData(task1Data, 1);
-      const session3Task1KeyPreference = fetchKeyPreferenceData(task1Data, 2);
-
-      const session1Task1AccuracyArray = fetchAccuracy(task1Data, 0);
-      const session2Task1AccuracyArray = fetchAccuracy(task1Data, 1);
-      const session3Task1AccuracyArray = fetchAccuracy(task1Data, 2);
-
-      const session1Task1TypingSpeedArray = fetchTypingSpeedData(task1Data, 0);
-      const session2Task1TypingSpeedArray = fetchTypingSpeedData(task1Data, 1);
-      const session3Task1TypingSpeedArray = fetchTypingSpeedData(task1Data, 2);
-      // the final feature vectors for each user
-
-      const task1TemporalFeatureVector = session1Task1TemporalData
-        .concat(session2Task1TemporalData)
-        .concat(session3Task1TemporalData);
-
-      const task1ReactionTimeFeatureVector = session1Task1ReactionTime
-        .concat(session2Task1ReactionTime)
-        .concat(session3Task1ReactionTime);
-
-      const task1KeyPreferenceFeatureVector = session1Task1KeyPreference
-        .concat(session2Task1KeyPreference)
-        .concat(session3Task1KeyPreference);
-
-      const task1BackspaceFeatureVector = session1Task1AccuracyArray
-        .concat(session2Task1AccuracyArray)
-        .concat(session3Task1AccuracyArray);
-
-      const task1TypingSpeedFeatureVector = session1Task1TypingSpeedArray
-        .concat(session2Task1TypingSpeedArray)
-        .concat(session3Task1TypingSpeedArray);
-      // merge all for a feature vector
-      //console.log(task1TemporalFeatureVector);
-      //console.log(task1ReactionTimeFeatureVector);
-      // setTask1Data(task1TemporalFeatureVector);
-      // console.log(task1KeyPreferenceFeatureVector);
-      //console.log(task1BackspaceFeatureVector);
-      console.log(task1TypingSpeedFeatureVector);
+      for (let i = 0; i < 3; i++) {
+        if (temporal) {
+          const tempData = await fetchTaskTemporalData(task1Data, i);
+          task1vector.push(tempData);
+        }
+        if (reaction) {
+          task1vector.push(() => fetchTaskReactionTimeData(task1Data, i));
+        }
+        if (keyPreference) {
+          task1vector.push(() => fetchKeyPreferenceData(task1Data, i));
+        }
+        if (accuracy) {
+          task1vector.push(() => fetchAccuracy(task1Data, i));
+        }
+        if (typingSpeed) {
+          task1vector.push(() => fetchTypingSpeedData(task1Data, i));
+        }
+      }
     }
 
     // subvector for task 2a
     if (task2aSnapshot) {
-      // setTask2aData(task2aSnapshot.val());
+      const task2aData: Task[] = task2aSnapshot.val();
+      for (let i = 0; i < 3; i++) {
+        if (temporal) {
+          // the quick brown fox jumps over the lazy dog
+          const tempData = await fetchTaskTemporalData(task2aData, i);
+          task2avector.push(tempData);
+        }
+        if (reaction) {
+          task2avector.push(() => fetchTaskReactionTimeData(task2aData, i));
+        }
+        if (keyPreference) {
+          task2avector.push(() => fetchKeyPreferenceData(task2aData, i));
+        }
+        if (accuracy) {
+          task2avector.push(() => fetchAccuracy(task2aData, i));
+        }
+        if (typingSpeed) {
+          task2avector.push(() => fetchTypingSpeedData(task2aData, i));
+        }
+      }
     }
-
+    // console.log(task2avector);
+    // console.log(task2avector);
     // subvector for task 2b
     if (task2bSnapshot) {
-      // setTask2bData(task2bSnapshot.val());
+      const task2bData: Task[] = task2bSnapshot.val();
+      for (let i = 0; i < 3; i++) {
+        if (temporal) {
+          // liquor ...
+          const tempData = await fetchTaskTemporalData(task2bData, i);
+          task2bvector.push(tempData);
+        }
+        if (reaction) {
+          task2bvector.push(() => fetchTaskReactionTimeData(task2bData, i));
+        }
+        if (keyPreference) {
+          task2bvector.push(() => fetchKeyPreferenceData(task2bData, i));
+        }
+        if (accuracy) {
+          task2bvector.push(() => fetchAccuracy(task2bData, i));
+        }
+        if (typingSpeed) {
+          task2bvector.push(() => fetchTypingSpeedData(task2bData, i));
+        }
+      }
     }
-
-    // subvector for task 2c
+    // console.log(task2bvector);
+    //subvector for task 2c
     if (task2cSnapshot) {
-      // setTask2cData(task2cSnapshot.val());
+      const task2cData: Task[] = task2cSnapshot.val();
+      for (let i = 0; i < 3; i++) {
+        if (temporal) {
+          // LOOSE....
+          const tempData = await fetchTaskTemporalData(task2cData, i);
+          task2cvector.push(tempData);
+        }
+        if (reaction) {
+          task2cvector.push(() => fetchTaskReactionTimeData(task2cData, i));
+        }
+        if (keyPreference) {
+          task2cvector.push(() => fetchKeyPreferenceData(task2cData, i));
+        }
+        if (accuracy) {
+          task2cvector.push(() => fetchAccuracy(task2cData, i));
+        }
+        if (typingSpeed) {
+          task2cvector.push(() => fetchTypingSpeedData(task2cData, i));
+        }
+      }
     }
 
-    // subvector for task 3 - to be continued
+    const fullVector = task1vector
+      .concat(task2avector)
+      .concat(task2bvector)
+      .concat(task2cvector);
+
+    console.log(fullVector);
+    return task1vector;
   };
 
-  useEffect(() => {
-    fetchTask();
-  }, []);
-  return <div>//</div>;
-};
-
-const Home = () => {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const db = getDatabase(app);
-  const userRef = query(ref(db, `users`));
-
   const fetchUsers = async () => {
-    const userSnapshot = await get(userRef);
     let userList: UserProfile[] = [];
+    const userSnapshot = await get(userRef);
     if (userSnapshot) {
       for (let userKey of Object.keys(userSnapshot.val())) {
         for (let userInnerKey of Object.keys(userSnapshot.val()[userKey])) {
@@ -360,33 +448,24 @@ const Home = () => {
           }
         }
       }
-      setUsers(userList);
+      return userList;
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const fetchTaskVectors = async () => {
+    const userList = await fetchUsers();
+    let listofrecords: any[] = [];
+    userList?.forEach(async (user) => {
+      const record = await fetchTask({ id: user.user_id, temporal: true });
+      listofrecords.push(record);
+    });
+    console.log(listofrecords);
+    return listofrecords;
+  };
 
   return (
     <div className="section">
-      {users.length > 0 &&
-        users.map((user) => (
-          <UserTaskRecord id={user.user_id} key={user.user_id} />
-        ))}
-      {/* <div className="user-section">
-        <h2>Users</h2>
-        {Object.keys(users).map((key) =>
-          Object.keys(users[key]).map((innerkey) => (
-            <div className="user-item" key={innerkey}>
-              <div>
-                User: {users[key][innerkey].gender}, {users[key][innerkey].age}{" "}
-                years old, completed {users[key][innerkey].session} sessions
-              </div>
-            </div>
-          ))
-        )}
-      </div> */}
+      <button onClick={fetchTaskVectors}>Download file</button>
       <div className="task1-section"></div>
       <div className="task2a-section"></div>
       <div className="task2b-section"></div>
