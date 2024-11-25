@@ -9,12 +9,13 @@ import { Task, TaskIteration } from "../types/Tasks";
 const Home = () => {
   const db = getDatabase(app);
   const userRef = query(ref(db, `users`));
-  // slightly different vector, with free typing speed - in
-  const task3vector: any[] = [];
 
-  const fetchLetterProximityData = () => {
-    // to do
-  };
+  // slightly different vector, with free typing speed - in
+  // const task3vector: any[] = [];
+
+  // const fetchLetterProximityData = () => {
+  //   // to do
+  // };
 
   const fetchTypingSpeedData = (taskData: Task[], sessionNumber: number) => {
     const iterationValues: TaskIteration[] = Object.values(
@@ -189,10 +190,7 @@ const Home = () => {
   };
 
   // task specific temporal data fetch
-  const fetchTaskTemporalData = async (
-    taskData: Task[],
-    sessionNumber: number
-  ) => {
+  const fetchTaskTemporalData = (taskData: Task[], sessionNumber: number) => {
     const downUpTimes: number[] = [];
     const upDownTimes: number[] = [];
 
@@ -261,12 +259,6 @@ const Home = () => {
 
       for (let keystroke = 0; keystroke < arrayLengthSession; keystroke++) {
         try {
-          // issue here
-          // if (keyUpArray[keystroke].code !== keyDownArray[keystroke].code) {
-          //   console.log(
-          //     keyDownArray[keystroke].code + " " + keyUpArray[keystroke].code
-          //   );
-          // }
           if (
             keyUpArray[keystroke].timestamp >
               keyDownArray[keystroke].globalTimeStamp &&
@@ -337,7 +329,7 @@ const Home = () => {
       const task1Data: Task[] = task1Snapshot.val();
       for (let i = 0; i < 3; i++) {
         if (temporal) {
-          const tempData = await fetchTaskTemporalData(task1Data, i);
+          const tempData = fetchTaskTemporalData(task1Data, i);
           task1vector.push(tempData);
         }
         if (reaction) {
@@ -361,7 +353,7 @@ const Home = () => {
       for (let i = 0; i < 3; i++) {
         if (temporal) {
           // the quick brown fox jumps over the lazy dog
-          const tempData = await fetchTaskTemporalData(task2aData, i);
+          const tempData = fetchTaskTemporalData(task2aData, i);
           task2avector.push(tempData);
         }
         if (reaction) {
@@ -378,15 +370,13 @@ const Home = () => {
         }
       }
     }
-    // console.log(task2avector);
-    // console.log(task2avector);
     // subvector for task 2b
     if (task2bSnapshot) {
       const task2bData: Task[] = task2bSnapshot.val();
       for (let i = 0; i < 3; i++) {
         if (temporal) {
           // liquor ...
-          const tempData = await fetchTaskTemporalData(task2bData, i);
+          const tempData = fetchTaskTemporalData(task2bData, i);
           task2bvector.push(tempData);
         }
         if (reaction) {
@@ -403,14 +393,13 @@ const Home = () => {
         }
       }
     }
-    // console.log(task2bvector);
     //subvector for task 2c
     if (task2cSnapshot) {
       const task2cData: Task[] = task2cSnapshot.val();
       for (let i = 0; i < 3; i++) {
         if (temporal) {
           // LOOSE....
-          const tempData = await fetchTaskTemporalData(task2cData, i);
+          const tempData = fetchTaskTemporalData(task2cData, i);
           task2cvector.push(tempData);
         }
         if (reaction) {
@@ -433,8 +422,8 @@ const Home = () => {
       .concat(task2bvector)
       .concat(task2cvector);
 
-    console.log(fullVector);
-    return task1vector;
+    // console.log(fullVector);
+    return fullVector;
   };
 
   const fetchUsers = async () => {
@@ -454,13 +443,17 @@ const Home = () => {
 
   const fetchTaskVectors = async () => {
     const userList = await fetchUsers();
-    let listofrecords: any[] = [];
-    userList?.forEach(async (user) => {
-      const record = await fetchTask({ id: user.user_id, temporal: true });
-      listofrecords.push(record);
-    });
-    console.log(listofrecords);
-    return listofrecords;
+    let finalVector: any[] = [];
+    if (userList) {
+      userList.forEach((user) => {
+        fetchTask({ id: user.user_id, temporal: true }).then((value) =>
+          finalVector.concat(value)
+        );
+      });
+      console.log(finalVector);
+    } else {
+      console.log("no");
+    }
   };
 
   return (
