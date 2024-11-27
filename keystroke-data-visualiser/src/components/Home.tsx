@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { getDatabase, ref, query, get } from "firebase/database";
 import { UserProfile } from "../types/Users";
 
@@ -441,16 +441,18 @@ const Home = () => {
     }
   };
 
+  const [finalVect, setFinalVect] = useState<any[]>([]);
+
   const fetchTaskVectors = async () => {
     const userList = await fetchUsers();
-    let finalVector: any[] = [];
     if (userList) {
-      userList.forEach((user) => {
+      userList.forEach((user, i) => {
+        console.log(i);
         fetchTask({ id: user.user_id, temporal: true }).then((value) =>
-          finalVector.concat(value)
+          setFinalVect([...finalVect, value])
         );
+        // console.log(finalVect);
       });
-      console.log(finalVector);
     } else {
       console.log("no");
     }
@@ -459,6 +461,7 @@ const Home = () => {
   return (
     <div className="section">
       <button onClick={fetchTaskVectors}>Download file</button>
+      <button onClick={() => console.log(finalVect)}>Download file</button>
       <div className="task1-section"></div>
       <div className="task2a-section"></div>
       <div className="task2b-section"></div>
