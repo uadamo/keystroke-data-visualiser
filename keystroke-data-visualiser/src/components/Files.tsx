@@ -4,6 +4,7 @@ import { getDatabase, ref, query, get } from "firebase/database";
 import { UserProfile } from "../types/Users";
 import { app } from "../firebase";
 import { Task, TaskIteration } from "../types/Tasks";
+import Plot from "react-plotly.js";
 
 const Files = () => {
   const db = getDatabase(app);
