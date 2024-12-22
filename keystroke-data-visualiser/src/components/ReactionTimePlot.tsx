@@ -29,7 +29,7 @@ const ReactionTimePerPersonPlot = ({
       layout={{
         width: 1100,
         height: 600,
-        title: { text: `Typing accuracy for user ${userKeystrokeData[0]}` },
+        title: { text: `Reaction time for user ${userKeystrokeData[0]}` },
       }}
     />
   );
@@ -43,7 +43,7 @@ const ReactionTimePlot = () => {
   return (
     <div className="section">
       {vectors.map((vector) => (
-        <ReactionTimePerPersonPlot userKeystrokeData={vector} />
+        <ReactionTimePerPersonPlot key={vector} userKeystrokeData={vector} />
       ))}
     </div>
   );

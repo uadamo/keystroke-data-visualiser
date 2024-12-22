@@ -302,7 +302,33 @@ const fetchTaskReactionTimeData = (taskData: Task[], sessionNumber: number) => {
       iterationValue.start_time -
       iterationValue.reaction_latency;
   }
-  return reactionTimeArray;
+
+  //   const meanDownUp =
+  //   downUpTimes.reduce((acc, val) => acc + val, 0) / downUpTimes.length;
+  // const stDevMeanDownUp = Math.sqrt(
+  //   downUpTimes
+  //     .map((x) => Math.pow(x - meanDownUp, 2))
+  //     .reduce((a, b) => a + b) / downUpTimes.length
+  // );
+  // const filteredDownUpTimes = downUpTimes.filter((value) => {
+  //   const zScore = (value - meanDownUp) / stDevMeanDownUp;
+  //   return Math.abs(zScore) <= 2;
+  // });
+
+  const meanReactionTime =
+    reactionTimeArray.reduce((acc, val) => acc + val, 0) /
+    reactionTimeArray.length;
+  const stDevReactionTime = Math.sqrt(
+    reactionTimeArray
+      .map((x) => Math.pow(x - meanReactionTime, 2))
+      .reduce((a, b) => a + b) / reactionTimeArray.length
+  );
+  const filteredReactionTimeArray = reactionTimeArray.filter((value) => {
+    const zScore = (value - meanReactionTime) / stDevReactionTime;
+    return Math.abs(zScore) <= 0.5;
+  });
+
+  return filteredReactionTimeArray;
 };
 
 interface fetchTaskProps {
@@ -450,6 +476,41 @@ const fetchTaskVectors = async ({
     }
   }
 
+  const csvContent = allVectors
+    .map((row) => row.map((item) => `"${item}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+
+  let filename = "";
+  if (temporal) {
+    filename += "Temporal";
+  }
+  if (reaction) {
+    filename += "Reaction";
+  }
+  if (keyPreference) {
+    filename += "KeyPreference";
+  }
+  if (accuracy) {
+    filename += "Accuracy";
+  }
+  if (typingSpeed) {
+    filename += "TypingSpeed";
+  }
+  if (freeTypingSpeed) {
+    filename += "FreeTypingSpeed";
+  }
+  if (specificKeyProximity) {
+    filename += "SpecificKeyProx";
+  }
+
+  a.download = `${filename}.csv`;
+  a.click();
+
   return allVectors;
 };
 
@@ -462,10 +523,7 @@ const Files = () => {
         <div>Pure vectors</div>
         <button
           type="button"
-          onClick={async () => {
-            const vect = await fetchTaskVectors({ temporal: true });
-            console.log(vect);
-          }}
+          onClick={() => fetchTaskVectors({ temporal: true })}
         >
           Temporal Data
         </button>
@@ -538,40 +596,3 @@ const Files = () => {
 };
 
 export { Files, fetchTaskVectors, fetchUsers };
-
-// if (task2aSnapshot) {
-//   const task2aData: Task[] = task2aSnapshot.val();
-//   for (let i = 0; i < 3; i++) {
-//     if (temporal) {
-//       const temporalData = fetchTaskTemporalData(task2aData, i);
-//       // 1000
-//       task2avector = temporalData.concat(
-//         Array(1100 - temporalData.length).fill(0)
-//       );
-//     }
-//   }
-// }
-// if (task2bSnapshot) {
-//   const task2bData: Task[] = task2bSnapshot.val();
-//   for (let i = 0; i < 3; i++) {
-//     const temporalData = fetchTaskTemporalData(task2bData, i);
-//     // 900
-//     task2bvector = temporalData.concat(
-//       Array(1000 - temporalData.length).fill(0)
-//     );
-//   }
-// }
-// if (task2cSnapshot) {
-//   const task2cData: Task[] = task2cSnapshot.val();
-//   for (let i = 0; i < 3; i++) {
-//     // 900
-//     const temporalData = fetchTaskTemporalData(task2cData, i);
-//     task2cvector = temporalData.concat(
-//       Array(1000 - temporalData.length).fill(0)
-//     );
-//   }
-// }
-// if (task3Snapshot) {
-//   const task3Data: Task[] = task3Snapshot.val();
-//   task3vector.push(task3Data);
-// }
