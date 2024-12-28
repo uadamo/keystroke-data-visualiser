@@ -39,7 +39,7 @@ const TemporalPlotComponent = ({
 const TemporalPlot = () => {
   const [temporalVectors, setTemporalVectors] = useState<any[]>([]);
   useEffect(() => {
-    fetchTaskVectors({ temporal: true }).then((result) =>
+    fetchTaskVectors({ upDown: true }).then((result) =>
       setTemporalVectors(result)
     );
   }, []);

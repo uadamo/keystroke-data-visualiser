@@ -22,8 +22,11 @@ const fetchUsers = async () => {
   }
 };
 
-const fetchTaskTemporalData = (taskData: Task[], sessionNumber: number) => {
-  const downUpTimes: number[] = [];
+const fetchKeyUpDownTimes = (
+  taskData: Task[],
+  sessionNumber: number,
+  taskCharacters: number
+) => {
   const upDownTimes: number[] = [];
 
   const iterationValues: TaskIteration[] = Object.values(
@@ -35,7 +38,126 @@ const fetchTaskTemporalData = (taskData: Task[], sessionNumber: number) => {
     (value) => value.keystroke_list.length > 10
   );
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; taskCharacters === 100 ? i < 2 : i < 10; i++) {
+    //@ts-ignore
+    const iterationValue: TaskIteration = filteredIterations.at(i);
+
+    // keyUp and KeyDown arrays for each iteration
+
+    const keyDownArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keydown")
+      .filter(
+        (keystroke) =>
+          keystroke.globalTimeStamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) =>
+          keystroke1.globalTimeStamp - keystroke2.globalTimeStamp
+      );
+    const keyUpArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keyup")
+      .filter(
+        (keystroke) =>
+          keystroke.timestamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) => keystroke1.timestamp - keystroke2.timestamp
+      );
+
+    const arrayLengthSession = Math.min(keyDownArray.length, keyUpArray.length);
+
+    for (let keystroke = 0; keystroke < arrayLengthSession; keystroke++) {
+      try {
+        if (
+          keyUpArray[keystroke].timestamp >
+            keyDownArray[keystroke].globalTimeStamp &&
+          keyUpArray[keystroke].code === keyDownArray[keystroke].code &&
+          keyUpArray[keystroke + 1].code === keyDownArray[keystroke + 1].code
+        ) {
+          upDownTimes.push(
+            keyDownArray[keystroke + 1].globalTimeStamp -
+              keyUpArray[keystroke].timestamp
+          );
+        }
+      } catch (e) {
+        // correct later
+        break;
+      }
+    }
+  }
+
+  // removing outliers with z-score method
+  const meanUpDown =
+    upDownTimes.reduce((acc, val) => acc + val, 0) / upDownTimes.length;
+  const stDevMeanUpDown = Math.sqrt(
+    upDownTimes
+      .map((x) => Math.pow(x - meanUpDown, 2))
+      .reduce((a, b) => a + b) / upDownTimes.length
+  );
+  const filteredUpDownTimes = upDownTimes
+    .filter((value) => {
+      const zScore = (value - meanUpDown) / stDevMeanUpDown;
+      return Math.abs(zScore) <= 3;
+    })
+    .slice(0, taskCharacters * 10);
+
+  if (filteredUpDownTimes.length < taskCharacters * 10) {
+    const sorted = filteredUpDownTimes.slice().sort(function (a, b) {
+      return a - b;
+    });
+
+    const mean = sorted[Math.floor(filteredUpDownTimes.length / 2)];
+
+    const remainder = Array(
+      taskCharacters * 10 - filteredUpDownTimes.length
+    ).fill(mean);
+
+    filteredUpDownTimes.push(...remainder);
+  }
+
+  console.log(filteredUpDownTimes);
+
+  return filteredUpDownTimes;
+};
+
+const fetchKeyDownUpTimes = (
+  taskData: Task[],
+  sessionNumber: number,
+  taskCharacters: number
+) => {
+  const downUpTimes: number[] = [];
+  const iterationValues: TaskIteration[] = Object.values(
+    taskData[`session-${sessionNumber}`]
+  );
+
+  // just a measure to exclude arrays that have a very small amount of keystrokes due to inconsistencies
+  const filteredIterations = iterationValues.filter(
+    (value) => value.keystroke_list.length > 10
+  );
+
+  for (let i = 0; taskCharacters === 100 ? i < 1 : i < 10; i++) {
     //@ts-ignore
     const iterationValue: TaskIteration = filteredIterations.at(i);
 
@@ -97,9 +219,304 @@ const fetchTaskTemporalData = (taskData: Task[], sessionNumber: number) => {
             keyUpArray[keystroke].timestamp -
               keyDownArray[keystroke].globalTimeStamp
           );
-          upDownTimes.push(
-            keyDownArray[keystroke + 1].globalTimeStamp -
-              keyUpArray[keystroke].timestamp
+        }
+      } catch (e) {
+        // correct later
+        break;
+      }
+    }
+  }
+
+  // removing outliers with z-score method
+
+  const meanDownUp =
+    downUpTimes.reduce((acc, val) => acc + val, 0) / downUpTimes.length;
+  const stDevMeanDownUp = Math.sqrt(
+    downUpTimes
+      .map((x) => Math.pow(x - meanDownUp, 2))
+      .reduce((a, b) => a + b) / downUpTimes.length
+  );
+  const filteredDownUpTimes = downUpTimes
+    .filter((value) => {
+      const zScore = (value - meanDownUp) / stDevMeanDownUp;
+      return Math.abs(zScore) <= 2;
+    })
+    .slice(0, taskCharacters * 10);
+
+  if (filteredDownUpTimes.length < taskCharacters * 10) {
+    const sorted = filteredDownUpTimes.slice().sort(function (a, b) {
+      return a - b;
+    });
+
+    const mean = sorted[Math.floor(filteredDownUpTimes.length / 2)];
+
+    const remainder = Array(
+      taskCharacters * 10 - filteredDownUpTimes.length
+    ).fill(mean);
+
+    filteredDownUpTimes.push(...remainder);
+  }
+
+  console.log(filteredDownUpTimes);
+
+  return filteredDownUpTimes;
+};
+
+const fetchUpUpTimes = (
+  taskData: Task[],
+  sessionNumber: number,
+  taskCharacters: number
+) => {
+  const upUpTimes: number[] = [];
+  const iterationValues: TaskIteration[] = Object.values(
+    taskData[`session-${sessionNumber}`]
+  );
+
+  // just a measure to exclude arrays that have a very small amount of keystrokes due to inconsistencies
+  const filteredIterations = iterationValues.filter(
+    (value) => value.keystroke_list.length > 10
+  );
+
+  for (let i = 0; taskCharacters === 100 ? i < 1 : i < 10; i++) {
+    //@ts-ignore
+    const iterationValue: TaskIteration = filteredIterations.at(i);
+
+    const keyUpArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keyup")
+      .filter(
+        (keystroke) =>
+          keystroke.timestamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) => keystroke1.timestamp - keystroke2.timestamp
+      );
+
+    for (let keystroke = 0; keystroke < keyUpArray.length - 1; keystroke++) {
+      try {
+        upUpTimes.push(
+          keyUpArray[keystroke + 1].timestamp - keyUpArray[keystroke].timestamp
+        );
+      } catch (e) {
+        // correct later
+        break;
+      }
+    }
+  }
+
+  // removing outliers with z-score method
+
+  const meanUpUp =
+    upUpTimes.reduce((acc, val) => acc + val, 0) / upUpTimes.length;
+  const stDevMeanUpUp = Math.sqrt(
+    upUpTimes.map((x) => Math.pow(x - meanUpUp, 2)).reduce((a, b) => a + b) /
+      upUpTimes.length
+  );
+  const filteredUpUpTimes = upUpTimes
+    .filter((value) => {
+      const zScore = (value - meanUpUp) / stDevMeanUpUp;
+      return Math.abs(zScore) <= 2;
+    })
+    .slice(0, taskCharacters * 10);
+
+  // shortening to fixed length:
+
+  if (filteredUpUpTimes.length < taskCharacters * 10) {
+    const sorted = filteredUpUpTimes.slice().sort(function (a, b) {
+      return a - b;
+    });
+
+    const mean = sorted[Math.floor(filteredUpUpTimes.length / 2)];
+
+    const remainder = Array(
+      taskCharacters * 10 - filteredUpUpTimes.length
+    ).fill(mean);
+
+    filteredUpUpTimes.push(...remainder);
+  }
+
+  console.log(filteredUpUpTimes);
+
+  return filteredUpUpTimes;
+};
+
+const fetchDownDownTimes = (
+  taskData: Task[],
+  sessionNumber: number,
+  taskCharacters: number
+) => {
+  const downDownTimes: number[] = [];
+  const iterationValues: TaskIteration[] = Object.values(
+    taskData[`session-${sessionNumber}`]
+  );
+
+  // just a measure to exclude arrays that have a very small amount of keystrokes due to inconsistencies
+  const filteredIterations = iterationValues.filter(
+    (value) => value.keystroke_list.length > 10
+  );
+
+  for (let i = 0; taskCharacters === 100 ? i < 1 : i < 10; i++) {
+    //@ts-ignore
+    const iterationValue: TaskIteration = filteredIterations.at(i);
+
+    const keyDownArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keydown")
+      .filter(
+        (keystroke) =>
+          keystroke.globalTimeStamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) =>
+          keystroke1.globalTimeStamp - keystroke2.globalTimeStamp
+      );
+
+    for (let keystroke = 0; keystroke < keyDownArray.length - 1; keystroke++) {
+      try {
+        downDownTimes.push(
+          keyDownArray[keystroke + 1].timestamp -
+            keyDownArray[keystroke].timestamp
+        );
+      } catch (e) {
+        // correct later
+        break;
+      }
+    }
+  }
+
+  // removing outliers with z-score method
+
+  const meanDownDown =
+    downDownTimes.reduce((acc, val) => acc + val, 0) / downDownTimes.length;
+  const stDevMeanDownDown = Math.sqrt(
+    downDownTimes
+      .map((x) => Math.pow(x - meanDownDown, 2))
+      .reduce((a, b) => a + b) / downDownTimes.length
+  );
+  const filteredDownDownTimes = downDownTimes
+    .filter((value) => {
+      const zScore = (value - meanDownDown) / stDevMeanDownDown;
+      return Math.abs(zScore) <= 2;
+    })
+    .slice(0, taskCharacters * 10);
+
+  // shortening to fixed length:
+
+  if (filteredDownDownTimes.length < taskCharacters * 10) {
+    const sorted = filteredDownDownTimes.slice().sort(function (a, b) {
+      return a - b;
+    });
+
+    const mean = sorted[Math.floor(filteredDownDownTimes.length / 2)];
+
+    const remainder = Array(
+      taskCharacters * 10 - filteredDownDownTimes.length
+    ).fill(mean);
+
+    filteredDownDownTimes.push(...remainder);
+  }
+
+  console.log(filteredDownDownTimes);
+
+  return filteredDownDownTimes;
+};
+
+const fetchDigraphTimes = (
+  taskData: Task[],
+  sessionNumber: number,
+  taskCharacters: number
+) => {
+  const downUpTimes: number[] = [];
+  const iterationValues: TaskIteration[] = Object.values(
+    taskData[`session-${sessionNumber}`]
+  );
+
+  // just a measure to exclude arrays that have a very small amount of keystrokes due to inconsistencies
+  const filteredIterations = iterationValues.filter(
+    (value) => value.keystroke_list.length > 10
+  );
+
+  for (let i = 0; taskCharacters === 100 ? i < 1 : i < 10; i++) {
+    //@ts-ignore
+    const iterationValue: TaskIteration = filteredIterations.at(i);
+
+    // keyUp and KeyDown arrays for each iteration
+
+    const keyDownArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keydown")
+      .filter(
+        (keystroke) =>
+          keystroke.globalTimeStamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) =>
+          keystroke1.globalTimeStamp - keystroke2.globalTimeStamp
+      );
+    const keyUpArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keyup")
+      .filter(
+        (keystroke) =>
+          keystroke.timestamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) => keystroke1.timestamp - keystroke2.timestamp
+      );
+
+    const arrayLengthSession = Math.min(keyDownArray.length, keyUpArray.length);
+
+    for (let keystroke = 0; keystroke < arrayLengthSession - 1; keystroke++) {
+      try {
+        if (
+          keyUpArray[keystroke].timestamp >
+            keyDownArray[keystroke].globalTimeStamp &&
+          keyUpArray[keystroke].code === keyDownArray[keystroke].code &&
+          keyUpArray[keystroke + 1].code === keyDownArray[keystroke + 1].code
+        ) {
+          downUpTimes.push(
+            keyUpArray[keystroke + 1].timestamp -
+              keyDownArray[keystroke].globalTimeStamp
           );
         }
       } catch (e) {
@@ -118,23 +535,155 @@ const fetchTaskTemporalData = (taskData: Task[], sessionNumber: number) => {
       .map((x) => Math.pow(x - meanDownUp, 2))
       .reduce((a, b) => a + b) / downUpTimes.length
   );
-  const filteredDownUpTimes = downUpTimes.filter((value) => {
-    const zScore = (value - meanDownUp) / stDevMeanDownUp;
-    return Math.abs(zScore) <= 2;
-  });
+  const filteredDownUpTimes = downUpTimes
+    .filter((value) => {
+      const zScore = (value - meanDownUp) / stDevMeanDownUp;
+      return Math.abs(zScore) <= 2;
+    })
+    .slice(0, taskCharacters * 10);
 
-  const meanUpDown =
-    upDownTimes.reduce((acc, val) => acc + val, 0) / upDownTimes.length;
-  const stDevMeanUpDown = Math.sqrt(
-    upDownTimes
-      .map((x) => Math.pow(x - meanUpDown, 2))
-      .reduce((a, b) => a + b) / upDownTimes.length
+  // shortening to fixed length:
+
+  if (filteredDownUpTimes.length < taskCharacters * 10) {
+    const sorted = filteredDownUpTimes.slice().sort(function (a, b) {
+      return a - b;
+    });
+
+    const mean = sorted[Math.floor(filteredDownUpTimes.length / 2)];
+
+    const remainder = Array(
+      taskCharacters * 10 - filteredDownUpTimes.length
+    ).fill(mean);
+
+    filteredDownUpTimes.push(...remainder);
+  }
+
+  console.log(filteredDownUpTimes);
+
+  return filteredDownUpTimes;
+};
+
+const fetchTrigraphTimes = (
+  taskData: Task[],
+  sessionNumber: number,
+  taskCharacters: number
+) => {
+  const downUpTimes: number[] = [];
+  const iterationValues: TaskIteration[] = Object.values(
+    taskData[`session-${sessionNumber}`]
   );
-  const filteredUpDownTimes = upDownTimes.filter((value) => {
-    const zScore = (value - meanUpDown) / stDevMeanUpDown;
-    return Math.abs(zScore) <= 3;
-  });
-  return filteredDownUpTimes.concat(filteredUpDownTimes);
+
+  // just a measure to exclude arrays that have a very small amount of keystrokes due to inconsistencies
+  const filteredIterations = iterationValues.filter(
+    (value) => value.keystroke_list.length > 10
+  );
+
+  for (let i = 0; taskCharacters === 100 ? i < 1 : i < 10; i++) {
+    //@ts-ignore
+    const iterationValue: TaskIteration = filteredIterations.at(i);
+
+    // keyUp and KeyDown arrays for each iteration
+
+    const keyDownArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keydown")
+      .filter(
+        (keystroke) =>
+          keystroke.globalTimeStamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) =>
+          keystroke1.globalTimeStamp - keystroke2.globalTimeStamp
+      );
+    const keyUpArray = iterationValue.keystroke_list
+      .filter((keystroke) => keystroke.type === "keyup")
+      .filter(
+        (keystroke) =>
+          keystroke.timestamp >
+          iterationValue.start_time + iterationValue.reaction_latency
+      )
+      .filter(
+        (keystroke) =>
+          !keystroke.altKey ||
+          !keystroke.metaKey ||
+          !keystroke.ctrlKey ||
+          !keystroke.shiftKey
+      )
+      .filter((keystroke) => keystroke.key !== "Shift")
+      .filter((keystroke) => keystroke.key !== "CapsLock")
+      .filter((keystroke) => keystroke.key !== "Control")
+      .sort(
+        (keystroke1, keystroke2) => keystroke1.timestamp - keystroke2.timestamp
+      );
+
+    const arrayLengthSession = Math.min(keyDownArray.length, keyUpArray.length);
+
+    for (let keystroke = 0; keystroke < arrayLengthSession - 2; keystroke++) {
+      try {
+        if (
+          keyUpArray[keystroke].timestamp >
+            keyDownArray[keystroke].globalTimeStamp &&
+          keyUpArray[keystroke].code === keyDownArray[keystroke].code &&
+          keyUpArray[keystroke + 1].code === keyDownArray[keystroke + 1].code &&
+          keyUpArray[keystroke + 2].code === keyDownArray[keystroke + 2].code
+        ) {
+          downUpTimes.push(
+            keyUpArray[keystroke + 2].timestamp -
+              keyDownArray[keystroke].globalTimeStamp
+          );
+        }
+      } catch (e) {
+        // correct later
+        break;
+      }
+    }
+  }
+
+  // removing outliers with z-score method
+
+  const meanDownUp =
+    downUpTimes.reduce((acc, val) => acc + val, 0) / downUpTimes.length;
+  const stDevMeanDownUp = Math.sqrt(
+    downUpTimes
+      .map((x) => Math.pow(x - meanDownUp, 2))
+      .reduce((a, b) => a + b) / downUpTimes.length
+  );
+  const filteredDownUpTimes = downUpTimes
+    .filter((value) => {
+      const zScore = (value - meanDownUp) / stDevMeanDownUp;
+      return Math.abs(zScore) <= 2;
+    })
+    .slice(0, taskCharacters * 10);
+
+  // shortening to fixed length:
+
+  if (filteredDownUpTimes.length < taskCharacters * 10) {
+    const sorted = filteredDownUpTimes.slice().sort(function (a, b) {
+      return a - b;
+    });
+
+    const mean = sorted[Math.floor(filteredDownUpTimes.length / 2)];
+
+    const remainder = Array(
+      taskCharacters * 10 - filteredDownUpTimes.length
+    ).fill(mean);
+
+    filteredDownUpTimes.push(...remainder);
+  }
+
+  console.log(filteredDownUpTimes);
+
+  return filteredDownUpTimes;
 };
 
 const fetchTypingSpeedData = (taskData: Task[], sessionNumber: number) => {
@@ -331,27 +880,142 @@ const fetchTaskReactionTimeData = (taskData: Task[], sessionNumber: number) => {
   return filteredReactionTimeArray;
 };
 
-interface fetchTaskProps {
-  temporal?: boolean;
+interface getCSVLabelProps {
+  upDown?: boolean;
+  downUp?: boolean;
+  downDown?: boolean;
+  upUp?: boolean;
+  digraph?: boolean;
+  trigraph?: boolean;
   reaction?: boolean;
   keyPreference?: boolean;
   accuracy?: boolean;
   typingSpeed?: boolean;
-  freeTypingSpeed?: boolean;
-  specificKeyProximity?: boolean;
 }
-
-const fetchTaskVectors = async ({
-  temporal,
+const getCSVLabel = async ({
+  upDown,
+  downUp,
+  upUp,
+  downDown,
+  digraph,
+  trigraph,
   reaction,
   keyPreference,
   accuracy,
   typingSpeed,
-  freeTypingSpeed,
-  specificKeyProximity,
+}: getCSVLabelProps) => {
+  let label: string[] = [];
+  label.push("user");
+  label.push("session");
+
+  if (upDown) {
+    for (var i1 = 0; i1 < (10 + 43 + 40 + 41) * 10; i1++) {
+      label.push(`up_down_${i1}`);
+    }
+  }
+
+  if (downUp) {
+    for (var i2 = 0; i2 < (10 + 43 + 40 + 41) * 10; i2++) {
+      label.push(`down_up_${i2}`);
+    }
+  }
+
+  if (upUp) {
+    // change number
+    for (var i3 = 0; i3 < (9 + 42 + 39 + 49) * 10; i3++) {
+      label.push(`up_up_${i3}`);
+    }
+  }
+
+  if (downDown) {
+    // change number
+    for (var i4 = 0; i4 < (9 + 42 + 39 + 49) * 10; i4++) {
+      label.push(`down_down_${i4}`);
+    }
+  }
+
+  if (trigraph) {
+    // change number
+    for (var i5 = 0; i5 < (8 + 41 + 38 + 48) * 10; i5++) {
+      label.push(`down_down_${i5}`);
+    }
+  }
+
+  // update to reflect accurate numbers
+  if (reaction) {
+    for (var i6 = 0; i6 < 30; i6++) {
+      label.push(`reaction_${i6}`);
+    }
+  }
+
+  if (keyPreference) {
+    for (var i7 = 0; i7 < 30; i7++) {
+      label.push(`key_preference_${i7}`);
+    }
+  }
+
+  if (accuracy) {
+    for (var i8 = 0; i8 < 30; i8++) {
+      label.push(`accuracy_${i8}`);
+    }
+  }
+
+  if (typingSpeed) {
+    for (var i9 = 0; i9 < 30; i9++) {
+      label.push(`typing_speed_${i9}`);
+    }
+  }
+
+  if (digraph) {
+    // change number
+    for (var i10 = 0; i10 < (9 + 42 + 39 + 49) * 10; i10++) {
+      label.push(`down_down_${i10}`);
+    }
+  }
+
+  return label;
+};
+
+interface fetchTaskProps {
+  upDown?: boolean;
+  downUp?: boolean;
+  upUp?: boolean;
+  downDown?: boolean;
+  digraph?: boolean;
+  trigraph?: boolean;
+  reaction?: boolean;
+  keyPreference?: boolean;
+  accuracy?: boolean;
+  typingSpeed?: boolean;
+}
+
+const fetchTaskVectors = async ({
+  upDown,
+  downUp,
+  upUp,
+  downDown,
+  digraph,
+  trigraph,
+  reaction,
+  keyPreference,
+  accuracy,
+  typingSpeed,
 }: fetchTaskProps) => {
   const db = getDatabase(app);
   let allVectors: any[] = [];
+  const label = await getCSVLabel({
+    upDown,
+    downUp,
+    upUp,
+    downDown,
+    digraph,
+    trigraph,
+    reaction,
+    keyPreference,
+    accuracy,
+    typingSpeed,
+  });
+  allVectors.push(label);
   const userList = await fetchUsers();
   if (userList) {
     for (const user of userList) {
@@ -367,12 +1031,6 @@ const fetchTaskVectors = async ({
       const task2cSnapshot = await get(task2cref);
       const task3Snapshot = await get(task3ref);
 
-      let task1vector: any[] = [];
-      let task2avector: any[] = [];
-      let task2bvector: any[] = [];
-      let task2cvector: any[] = [];
-      let task3vector: any[] = [];
-
       if (task1Snapshot && task2aSnapshot && task2bSnapshot && task2cSnapshot) {
         const task1Data: Task[] = task1Snapshot.val();
         const task2aData: Task[] = task2aSnapshot.val();
@@ -381,30 +1039,90 @@ const fetchTaskVectors = async ({
         const task3Data: Task[] = task3Snapshot.val();
 
         for (let i = 0; i < 3; i++) {
-          if (temporal) {
-            const temporalData1 = fetchTaskTemporalData(task1Data, i);
-            const temporalData2a = fetchTaskTemporalData(task2aData, i);
-            const temporalData2b = fetchTaskTemporalData(task2bData, i);
-            const temporalData2c = fetchTaskTemporalData(task2cData, i);
+          let task1vector: any[] = [];
+          let task2avector: any[] = [];
+          let task2bvector: any[] = [];
+          let task2cvector: any[] = [];
+          let task3vector: any[] = [];
+
+          if (upDown) {
+            const temporalData1 = fetchKeyUpDownTimes(task1Data, i, 10);
+            const temporalData2a = fetchKeyUpDownTimes(task2aData, i, 43);
+            const temporalData2b = fetchKeyUpDownTimes(task2bData, i, 40);
+            const temporalData2c = fetchKeyUpDownTimes(task2cData, i, 41);
+            // const temporalData3 = fetchKeyUpDownTimes(task3Data, i, 100);
             // filling task vectors
-            task1vector.push(
-              ...temporalData1.concat(Array(240 - temporalData1.length).fill(0))
-            );
-            task2avector.push(
-              ...temporalData2a.concat(
-                Array(1100 - temporalData2a.length).fill(0)
-              )
-            );
-            task2bvector.push(
-              ...temporalData2b.concat(
-                Array(980 - temporalData2b.length).fill(0)
-              )
-            );
-            task2cvector.push(
-              ...temporalData2c.concat(
-                Array(980 - temporalData2c.length).fill(0)
-              )
-            );
+            task1vector.push(...temporalData1);
+            task2avector.push(...temporalData2a);
+            task2bvector.push(...temporalData2b);
+            task2cvector.push(...temporalData2c);
+            //task3vector.push(...temporalData3);
+          }
+          if (downUp) {
+            const temporalData1 = fetchKeyDownUpTimes(task1Data, i, 10);
+            const temporalData2a = fetchKeyDownUpTimes(task2aData, i, 43);
+            const temporalData2b = fetchKeyDownUpTimes(task2bData, i, 40);
+            const temporalData2c = fetchKeyDownUpTimes(task2cData, i, 41);
+            // const temporalData3 = fetchKeyDownUpTimes(task3Data, i, 100);
+            // filling task vectors
+            task1vector.push(...temporalData1);
+            task2avector.push(...temporalData2a);
+            task2bvector.push(...temporalData2b);
+            task2cvector.push(...temporalData2c);
+            // task3vector.push(...temporalData3);
+          }
+
+          if (upUp) {
+            const temporalData1 = fetchUpUpTimes(task1Data, i, 9);
+            const temporalData2a = fetchUpUpTimes(task2aData, i, 42);
+            const temporalData2b = fetchUpUpTimes(task2bData, i, 39);
+            const temporalData2c = fetchUpUpTimes(task2cData, i, 40);
+            //const temporalData3 = fetchUpUpTimes(task3Data, i, 100);
+            // filling task vectors
+            task1vector.push(...temporalData1);
+            task2avector.push(...temporalData2a);
+            task2bvector.push(...temporalData2b);
+            task2cvector.push(...temporalData2c);
+            //task3vector.push(...temporalData3);
+          }
+          if (downDown) {
+            const temporalData1 = fetchDownDownTimes(task1Data, i, 9);
+            const temporalData2a = fetchDownDownTimes(task2aData, i, 42);
+            const temporalData2b = fetchDownDownTimes(task2bData, i, 39);
+            const temporalData2c = fetchDownDownTimes(task2cData, i, 40);
+            //const temporalData3 = fetchDownDownTimes(task3Data, i, 100);
+            // filling task vectors
+            task1vector.push(...temporalData1);
+            task2avector.push(...temporalData2a);
+            task2bvector.push(...temporalData2b);
+            task2cvector.push(...temporalData2c);
+            //task3vector.push(...temporalData3);
+          }
+          if (digraph) {
+            const temporalData1 = fetchDigraphTimes(task1Data, i, 10);
+            const temporalData2a = fetchDigraphTimes(task2aData, i, 43);
+            const temporalData2b = fetchDigraphTimes(task2bData, i, 40);
+            const temporalData2c = fetchDigraphTimes(task2cData, i, 41);
+            //const temporalData3 = fetchDigraphTimes(task3Data, i, 100);
+            // filling task vectors
+            task1vector.push(...temporalData1);
+            task2avector.push(...temporalData2a);
+            task2bvector.push(...temporalData2b);
+            task2cvector.push(...temporalData2c);
+            //task3vector.push(...temporalData3);
+          }
+          if (trigraph) {
+            const temporalData1 = fetchTrigraphTimes(task1Data, i, 10);
+            const temporalData2a = fetchTrigraphTimes(task2aData, i, 43);
+            const temporalData2b = fetchTrigraphTimes(task2bData, i, 40);
+            const temporalData2c = fetchTrigraphTimes(task2cData, i, 41);
+            //const temporalData3 = fetchTrigraphTimes(task3Data, i, 100);
+            // filling task vectors
+            task1vector.push(...temporalData1);
+            task2avector.push(...temporalData2a);
+            task2bvector.push(...temporalData2b);
+            task2cvector.push(...temporalData2c);
+            //task3vector.push(...temporalData3);
           }
           if (reaction) {
             const reactionTimeData1 = fetchTaskReactionTimeData(task1Data, i);
@@ -456,25 +1174,32 @@ const fetchTaskVectors = async ({
           // if(specificKeyProximity){
 
           // }
+          // record for each session
+          if (
+            task1vector.length > 0 &&
+            task2avector.length > 0 &&
+            task2bvector.length > 0 &&
+            task2cvector.length > 0
+            // &&
+            //task3vector.length > 0
+          ) {
+            const userFeatureVector = [user.user_id].concat(
+              [String(i)],
+              task1vector,
+              task2avector,
+              task2bvector,
+              task2cvector,
+              task3vector
+            );
+            console.log(userFeatureVector);
+            allVectors.push(userFeatureVector);
+          }
         }
-      }
-      if (
-        task1vector.length > 0 &&
-        task2avector.length > 0 &&
-        task2bvector.length > 0 &&
-        task2cvector.length > 0
-      ) {
-        const userFeatureVector = [user.user_id].concat(
-          task1vector,
-          task2avector,
-          task2bvector,
-          task2cvector,
-          task3vector
-        );
-        allVectors.push(userFeatureVector);
       }
     }
   }
+
+  console.log(allVectors);
 
   const csvContent = allVectors
     .map((row) => row.map((item) => `"${item}"`).join(","))
@@ -486,8 +1211,23 @@ const fetchTaskVectors = async ({
   a.href = url;
 
   let filename = "";
-  if (temporal) {
-    filename += "Temporal";
+  if (upDown) {
+    filename += "UD_";
+  }
+  if (downUp) {
+    filename += "DU_";
+  }
+  if (upUp) {
+    filename += "UU_";
+  }
+  if (downDown) {
+    filename += "DD_";
+  }
+  if (digraph) {
+    filename += "digraph_";
+  }
+  if (trigraph) {
+    filename += "trigraph_";
   }
   if (reaction) {
     filename += "Reaction";
@@ -501,12 +1241,9 @@ const fetchTaskVectors = async ({
   if (typingSpeed) {
     filename += "TypingSpeed";
   }
-  if (freeTypingSpeed) {
-    filename += "FreeTypingSpeed";
-  }
-  if (specificKeyProximity) {
-    filename += "SpecificKeyProx";
-  }
+  // if (freeTypingSpeed) {
+  //   filename += "FreeTypingSpeed";
+  // }
 
   a.download = `${filename}.csv`;
   a.click();
@@ -523,9 +1260,41 @@ const Files = () => {
         <div>Pure vectors</div>
         <button
           type="button"
-          onClick={() => fetchTaskVectors({ temporal: true })}
+          onClick={() => fetchTaskVectors({ upDown: true })}
         >
-          Temporal Data
+          Up down
+        </button>
+
+        <button
+          type="button"
+          onClick={() => fetchTaskVectors({ downUp: true })}
+        >
+          Down up
+        </button>
+
+        <button type="button" onClick={() => fetchTaskVectors({ upUp: true })}>
+          Up up
+        </button>
+
+        <button
+          type="button"
+          onClick={() => fetchTaskVectors({ downDown: true })}
+        >
+          downDown
+        </button>
+
+        <button
+          type="button"
+          onClick={() => fetchTaskVectors({ digraph: true })}
+        >
+          digraph
+        </button>
+
+        <button
+          type="button"
+          onClick={() => fetchTaskVectors({ trigraph: true })}
+        >
+          trigraph
         </button>
 
         <button
@@ -561,23 +1330,21 @@ const Files = () => {
 
         <button
           type="button"
-          onClick={() => fetchTaskVectors({ temporal: true, reaction: true })}
+          onClick={() => fetchTaskVectors({ upDown: true, reaction: true })}
         >
           Temp + Reaction time data
         </button>
 
         <button
           type="button"
-          onClick={() =>
-            fetchTaskVectors({ temporal: true, typingSpeed: true })
-          }
+          onClick={() => fetchTaskVectors({ upDown: true, typingSpeed: true })}
         >
           Temp + Typing speed data
         </button>
 
         <button
           type="button"
-          onClick={() => fetchTaskVectors({ temporal: true, accuracy: true })}
+          onClick={() => fetchTaskVectors({ upDown: true, accuracy: true })}
         >
           Temp + Accuracy Data
         </button>
@@ -585,7 +1352,7 @@ const Files = () => {
         <button
           type="button"
           onClick={() =>
-            fetchTaskVectors({ temporal: true, keyPreference: true })
+            fetchTaskVectors({ upDown: true, keyPreference: true })
           }
         >
           Temp + Key preference data
