@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { fetchTaskVectors } from "./Files.tsx";
 import Plot from "react-plotly.js";
 
 import "./section.css";
@@ -38,11 +37,7 @@ const TemporalPlotComponent = ({
 
 const TemporalPlot = () => {
   const [temporalVectors, setTemporalVectors] = useState<any[]>([]);
-  useEffect(() => {
-    fetchTaskVectors({ upDown: true }).then((result) =>
-      setTemporalVectors(result)
-    );
-  }, []);
+
   return (
     <div className="section">
       {temporalVectors.map((vector, i) => (

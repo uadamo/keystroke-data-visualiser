@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { fetchTaskVectors } from "./Files.tsx";
 import Plot from "react-plotly.js";
 import "./section.css";
 
@@ -37,9 +36,7 @@ const ReactionTimePerPersonPlot = ({
 
 const ReactionTimePlot = () => {
   const [vectors, setVectors] = useState<any[]>([]);
-  useEffect(() => {
-    fetchTaskVectors({ reaction: true }).then((result) => setVectors(result));
-  }, []);
+
   return (
     <div className="section">
       {vectors.map((vector) => (

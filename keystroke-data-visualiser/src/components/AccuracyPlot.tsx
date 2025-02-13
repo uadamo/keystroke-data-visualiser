@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { fetchTaskVectors } from "./Files.tsx";
-
 import "./section.css";
 import Plot from "react-plotly.js";
 
@@ -36,9 +34,7 @@ const AccuracyPerPersonPlot = ({ userKeystrokeData }: PlotComponentProps) => {
 
 const AccuracyPlot = () => {
   const [vectors, setVectors] = useState<any[]>([]);
-  useEffect(() => {
-    fetchTaskVectors({ accuracy: true }).then((result) => setVectors(result));
-  }, []);
+
   return (
     <div className="section">
       <div>

@@ -11,9 +11,6 @@ const NavBar = () => {
       <NavLink className="navbar-item" to="/features">
         Features
       </NavLink>
-      <NavLink className="navbar-item" to="/files">
-        Files
-      </NavLink>
       <NavLink className={"navbar-item"} to="/database-stats">
         Database Stats Plot
       </NavLink>

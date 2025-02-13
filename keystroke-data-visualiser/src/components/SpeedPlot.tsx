@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { fetchTaskVectors } from "./Files.tsx";
 import Plot from "react-plotly.js";
 import "./section.css";
 
@@ -34,11 +33,7 @@ const SpeedPerPersonPlot = ({ userKeystrokeData }: PlotComponentProps) => {
 
 const SpeedPlot = () => {
   const [vectors, setVectors] = useState<any[]>([]);
-  useEffect(() => {
-    fetchTaskVectors({ typingSpeed: true }).then((result) =>
-      setVectors(result)
-    );
-  }, []);
+
   return (
     <div className="section">
       {vectors.map((vector, i) => (

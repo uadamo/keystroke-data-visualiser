@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 
 import "./section.css";
-import { fetchUsers } from "./Files.tsx";
 import { UserProfile } from "../types/Users";
 import Plot from "react-plotly.js";
 
@@ -70,9 +69,9 @@ const UserAgePieChart = ({ userVectors }: UserPieChartProps) => {
 
 const DatabaseStatsPlot = () => {
   const [userVectors, setUserVectors] = useState<UserProfile[]>([]);
-  useEffect(() => {
-    fetchUsers().then((result) => setUserVectors(result!));
-  }, []);
+  // useEffect(() => {
+  //   fetchUsers().then((result) => setUserVectors(result!));
+  // }, []);
 
   return (
     <div className="section">
