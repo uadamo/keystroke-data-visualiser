@@ -9,6 +9,7 @@ type KeyUp = {
   metaKey: boolean; // false;
   shiftKey: boolean; // false;
   timestamp: number; // 1728649007953;
+  globalTimeStamp: number; // 1728649007953;
   type: "keyup";
 };
 
@@ -41,4 +42,4 @@ type Task = {
   [key: string]: { [key: string]: TaskIteration };
 };
 
-export { Task, TaskIteration };
+export { Task, TaskIteration, KeyUp, KeyDown };

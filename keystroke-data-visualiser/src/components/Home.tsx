@@ -5,7 +5,8 @@ import "./section.css";
 import { getDatabase, ref, query, get } from "firebase/database";
 import { UserProfile } from "../types/Users";
 import { app } from "../firebase";
-import { Task, TaskIteration } from "../types/Tasks";
+import { Task, TaskIteration, KeyUp, KeyDown } from "../types/Tasks";
+import { all } from "@tensorflow/tfjs";
 
 const fetchUsers = async () => {
   const userRef = query(ref(db, `users`));
@@ -14,7 +15,7 @@ const fetchUsers = async () => {
   if (userSnapshot) {
     for (let userKey of Object.keys(userSnapshot.val())) {
       for (let userInnerKey of Object.keys(userSnapshot.val()[userKey])) {
-        if (userSnapshot.val()[userKey][userInnerKey].session > 1) {
+        if (userSnapshot.val()[userKey][userInnerKey].session > 2) {
           userList.push(userSnapshot.val()[userKey][userInnerKey]);
         }
       }
@@ -594,9 +595,6 @@ const negUU = async ({ task }: temporal_props) => {
   if (task === "2c") {
     phrase = "therewereLOOSE$100billsinthecooler";
   }
-  // produce a record for each session try (10 tries per session),
-  // return an array of 10 records
-  // user; session; task; DU_q, DU_u, etc.
 
   if (userList) {
     for (const user of userList) {
@@ -608,6 +606,7 @@ const negUU = async ({ task }: temporal_props) => {
           const iterationValues: TaskIteration[] = Object.values(
             taskSnapshot.val()[`session-${sesh}`]
           );
+
           const allKeyUps = iterationValues
             .map((iterationValue) => {
               return iterationValue.keystroke_list;
@@ -675,10 +674,10 @@ const negUU = async ({ task }: temporal_props) => {
                 }
               }
               if (
-                (records.length === 10 && task === "1") ||
-                (records.length === 35 && task === "2a") ||
-                (records.length === 33 && task === "2b") ||
-                (records.length === 34 && task === "2c")
+                (records.length === 9 && task === "1") ||
+                (records.length === 34 && task === "2a") ||
+                (records.length === 32 && task === "2b") ||
+                (records.length === 33 && task === "2c")
               ) {
                 const allTimes = records.length;
                 const negativeTimes = records.filter((r) => r < 0).length;
@@ -721,6 +720,8 @@ const negUU = async ({ task }: temporal_props) => {
   const a = document.createElement("a");
   a.href = url;
 
+  a.download = `UU_negative_task${task}.csv`;
+  a.click();
   a.download = `UU_negative_task${task}.csv`;
   a.click();
 };
@@ -1731,8 +1732,7 @@ const keyPreference = async ({ task }: temporal_props) => {
                     }
                   }
                   if (iterationKeyDowns[keystroke].key === "CapsLock") {
-                    capitalisationCount++;
-                    capsLockCount++;
+                    capsLockCount = 1;
                   }
                 } catch (e) {
                   // correct later
@@ -1745,7 +1745,7 @@ const keyPreference = async ({ task }: temporal_props) => {
               }
               const shiftRightPrec = shiftRightCount / capitalisationCount;
               const shiftLeftPrec = shiftLeftCount / capitalisationCount;
-              const capsLockPrec = capsLockCount / capitalisationCount;
+              const capsLockPrec = capsLockCount;
 
               recordArray.push([
                 user.user_id,
@@ -1772,7 +1772,7 @@ const keyPreference = async ({ task }: temporal_props) => {
     "iteration",
     "shiftRight",
     "shiftLeft",
-    "consoleLog",
+    "capsLock",
   ];
 
   recordArray.unshift(label);
@@ -1908,6 +1908,463 @@ const reactionTime = async ({ task }: temporal_props) => {
   a.click();
 };
 
+const task3Features = async () => {
+  const recordArray: any[] = [];
+
+  if (userList) {
+    for (const user of userList) {
+      const taskref = query(ref(db, `task3/user-${user.user_id}`));
+      const taskSnapshot = await get(taskref);
+
+      if (taskSnapshot) {
+        for (let sesh = 0; sesh < user.session; ++sesh) {
+          const iterationValues: TaskIteration[] = Object.values(
+            taskSnapshot.val()[`session-${sesh}`]
+          );
+
+          const allKeyDowns = iterationValues
+            .map((iterationValue) => {
+              return iterationValue.keystroke_list;
+            })
+            .flat(1)
+            .filter((keystroke) => keystroke.type === "keydown");
+
+          const allKeyUps = iterationValues
+            .map((iterationValue) => {
+              return iterationValue.keystroke_list;
+            })
+            .flat(1)
+            .filter((keystroke) => keystroke.type === "keyup");
+
+          try {
+            // averages of most popular letters
+            let E_list_down: KeyDown[] = [];
+            let A_list_down: KeyDown[] = [];
+            let T_list_down: KeyDown[] = [];
+            let O_list_down: KeyDown[] = [];
+            let I_list_down: KeyDown[] = [];
+            let N_list_down: KeyDown[] = [];
+            let S_list_down: KeyDown[] = [];
+            let R_list_down: KeyDown[] = [];
+            let L_list_down: KeyDown[] = [];
+
+            let E_list_up: KeyUp[] = [];
+            let A_list_up: KeyUp[] = [];
+            let T_list_up: KeyUp[] = [];
+            let O_list_up: KeyUp[] = [];
+            let I_list_up: KeyUp[] = [];
+            let N_list_up: KeyUp[] = [];
+            let S_list_up: KeyUp[] = [];
+            let R_list_up: KeyUp[] = [];
+            let L_list_up: KeyUp[] = [];
+
+            let E_list_H: number[] = [];
+            let A_list_H: number[] = [];
+            let T_list_H: number[] = [];
+            let O_list_H: number[] = [];
+            let I_list_H: number[] = [];
+            let N_list_H: number[] = [];
+            let S_list_H: number[] = [];
+            let R_list_H: number[] = [];
+            let L_list_H: number[] = [];
+
+            for (let idx = 0; idx < allKeyDowns.length; idx++) {
+              if (
+                allKeyDowns[idx].key === "e" ||
+                allKeyDowns[idx].code === "KEY_E"
+              ) {
+                E_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "a" ||
+                allKeyDowns[idx].code === "KEY_A"
+              ) {
+                A_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "t" ||
+                allKeyDowns[idx].code === "KEY_t"
+              ) {
+                T_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "o" ||
+                allKeyDowns[idx].code === "KEY_O"
+              ) {
+                O_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "i" ||
+                allKeyDowns[idx].code === "KEY_I"
+              ) {
+                I_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "n" ||
+                allKeyDowns[idx].code === "KEY_N"
+              ) {
+                N_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "s" ||
+                allKeyDowns[idx].code === "KEY_S"
+              ) {
+                S_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "r" ||
+                allKeyDowns[idx].code === "KEY_R"
+              ) {
+                R_list_down.push(allKeyDowns[idx]);
+              }
+              if (
+                allKeyDowns[idx].key === "l" ||
+                allKeyDowns[idx].code === "KEY_L"
+              ) {
+                L_list_down.push(allKeyDowns[idx]);
+              }
+            }
+
+            for (let idx = 0; idx < allKeyUps.length; idx++) {
+              if (
+                allKeyUps[idx].key === "e" ||
+                allKeyUps[idx].code === "KEY_E"
+              ) {
+                E_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "a" ||
+                allKeyUps[idx].code === "KEY_A"
+              ) {
+                A_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "t" ||
+                allKeyUps[idx].code === "KEY_t"
+              ) {
+                T_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "o" ||
+                allKeyUps[idx].code === "KEY_O"
+              ) {
+                O_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "i" ||
+                allKeyUps[idx].code === "KEY_I"
+              ) {
+                I_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "n" ||
+                allKeyUps[idx].code === "KEY_N"
+              ) {
+                N_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "s" ||
+                allKeyUps[idx].code === "KEY_S"
+              ) {
+                S_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "r" ||
+                allKeyUps[idx].code === "KEY_R"
+              ) {
+                R_list_up.push(allKeyUps[idx]);
+              }
+              if (
+                allKeyUps[idx].key === "l" ||
+                allKeyUps[idx].code === "KEY_L"
+              ) {
+                L_list_up.push(allKeyUps[idx]);
+              }
+            }
+
+            for (
+              let idx = 0;
+              idx < Math.min(E_list_up.length, E_list_down.length);
+              idx++
+            ) {
+              E_list_H.push(
+                E_list_up[idx].globalTimeStamp -
+                  E_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(A_list_up.length, A_list_down.length);
+              idx++
+            ) {
+              A_list_H.push(
+                A_list_up[idx].globalTimeStamp -
+                  A_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(T_list_up.length, T_list_down.length);
+              idx++
+            ) {
+              T_list_H.push(
+                T_list_up[idx].globalTimeStamp -
+                  T_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(O_list_up.length, O_list_down.length);
+              idx++
+            ) {
+              O_list_H.push(
+                O_list_up[idx].globalTimeStamp -
+                  O_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(I_list_up.length, I_list_down.length);
+              idx++
+            ) {
+              I_list_H.push(
+                I_list_up[idx].globalTimeStamp -
+                  I_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(N_list_up.length, N_list_down.length);
+              idx++
+            ) {
+              N_list_H.push(
+                N_list_up[idx].globalTimeStamp -
+                  N_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(S_list_up.length, S_list_down.length);
+              idx++
+            ) {
+              S_list_H.push(
+                S_list_up[idx].globalTimeStamp -
+                  S_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(R_list_up.length, R_list_down.length);
+              idx++
+            ) {
+              R_list_H.push(
+                R_list_up[idx].globalTimeStamp -
+                  R_list_down[idx].globalTimeStamp
+              );
+            }
+            for (
+              let idx = 0;
+              idx < Math.min(L_list_up.length, L_list_down.length);
+              idx++
+            ) {
+              L_list_H.push(
+                L_list_up[idx].globalTimeStamp -
+                  L_list_down[idx].globalTimeStamp
+              );
+            }
+
+            // average pause between words
+
+            let arrayOfDowns: [KeyDown, number][] = allKeyDowns.map((c, i) => [
+              c,
+              i,
+            ]);
+
+            const arrayOfSpaceDowns = arrayOfDowns.filter(
+              (i) => i[0].code === "Space" && i[0].key === " "
+            );
+            let arrayOfUps: [KeyUp, number][] = allKeyUps.map((c, i) => [c, i]);
+            const arrayOfSpaceUps = arrayOfUps.filter(
+              (i) => i[0].code === "Space" && i[0].key === " "
+            );
+            let spaceList: number[] = [];
+
+            for (let idx = 0; idx < arrayOfSpaceDowns.length; idx++) {
+              const keyBeforeSpace = allKeyUps[arrayOfSpaceDowns[idx][1] - 1];
+              const keyAfterSpace = allKeyDowns[arrayOfSpaceUps[idx][1] + 1];
+              spaceList.push(
+                keyAfterSpace.globalTimeStamp - keyBeforeSpace.globalTimeStamp
+              );
+            }
+
+            // average typing speed
+
+            const totalWords = allKeyDowns.length / 5;
+            const minutes =
+              (allKeyDowns[allKeyDowns.length - 1].globalTimeStamp -
+                allKeyDowns[0].globalTimeStamp) /
+              60000;
+
+            const speed = totalWords / minutes;
+
+            let backspaceCount = 0;
+
+            for (
+              let keystroke = 0;
+              keystroke < allKeyDowns.length;
+              keystroke++
+            ) {
+              try {
+                if (allKeyDowns[keystroke].key === "Backspace") {
+                  backspaceCount++;
+                }
+              } catch (e) {
+                // correct later
+                break;
+              }
+            }
+
+            // typing accuracy
+
+            const accuracy =
+              (allKeyDowns.length - backspaceCount) / allKeyDowns.length;
+
+            // key preference for shift keys and capslock
+
+            let shiftLeftCount = 0;
+            let shiftRightCount = 0;
+            let capsLockCount = 0;
+            let capitalisationCount = 0;
+            for (
+              let keystroke = 0;
+              keystroke < allKeyDowns.length;
+              keystroke++
+            ) {
+              try {
+                if (allKeyDowns[keystroke].key === "Shift") {
+                  capitalisationCount++;
+                  if (allKeyDowns[keystroke].location === 1) {
+                    shiftLeftCount++;
+                  }
+                  if (allKeyDowns[keystroke].location === 2) {
+                    shiftRightCount++;
+                  }
+                }
+                if (allKeyDowns[keystroke].key === "CapsLock") {
+                  capsLockCount = 1;
+                }
+              } catch (e) {
+                // correct later
+                break;
+              }
+            }
+            if (capitalisationCount === 0) {
+              // making sure it's never zero
+              capitalisationCount = 1;
+            }
+
+            const shiftRightPrec = shiftRightCount / capitalisationCount;
+            const shiftLeftPrec = shiftLeftCount / capitalisationCount;
+            const capsLockPrec = capsLockCount;
+
+            // comma count
+
+            let commacount = 0;
+
+            for (
+              let keystroke = 0;
+              keystroke < allKeyDowns.length;
+              keystroke++
+            ) {
+              try {
+                if (
+                  allKeyDowns[keystroke].key === "," ||
+                  allKeyDowns[keystroke].code === "Comma"
+                ) {
+                  commacount++;
+                }
+              } catch (e) {
+                // correct later
+                break;
+              }
+            }
+            const avg_E = E_list_H.reduce((a, b) => a + b) / E_list_H.length;
+            const avg_A = A_list_H.reduce((a, b) => a + b) / A_list_H.length;
+            const avg_T = T_list_H.reduce((a, b) => a + b) / T_list_H.length;
+            const avg_O = O_list_H.reduce((a, b) => a + b) / O_list_H.length;
+            const avg_I = I_list_H.reduce((a, b) => a + b) / I_list_H.length;
+            const avg_N = N_list_H.reduce((a, b) => a + b) / N_list_H.length;
+            const avg_S = S_list_H.reduce((a, b) => a + b) / S_list_H.length;
+            const avg_R = R_list_H.reduce((a, b) => a + b) / R_list_H.length;
+            const avg_L = L_list_H.reduce((a, b) => a + b) / L_list_H.length;
+
+            const avgPause =
+              spaceList.reduce((a, b) => a + b) / spaceList.length;
+            // full record
+            recordArray.push([
+              user.user_id,
+              avg_E,
+              avg_A,
+              avg_T,
+              avg_O,
+              avg_I,
+              avg_N,
+              avg_S,
+              avg_R,
+              avg_L,
+              speed,
+              avgPause,
+              accuracy,
+              shiftLeftPrec,
+              shiftRightPrec,
+              capsLockPrec,
+              commacount,
+            ]);
+          } catch (e) {
+            console.log(e);
+          }
+        }
+      }
+    }
+  }
+
+  let label: any[] = [
+    "user",
+    "mean_E_value",
+    "mean_A_value",
+    "mean_T_value",
+    "mean_O_value",
+    "mean_I_value",
+    "mean_N_value",
+    "mean_S_value",
+    "mean_R_value",
+    "mean_L_value",
+    "avg_typing_speed",
+    "avg_pause_time",
+    "free_typing_accuracy",
+    "shiftLeft",
+    "shiftRight",
+    "CapsLock",
+    "CommaCount",
+  ];
+
+  recordArray.unshift(label);
+
+  console.log(recordArray);
+
+  const csvContent = recordArray
+    .map((row) => row.map((item) => `"${item}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+
+  a.download = `task3_features.csv`;
+  a.click();
+};
+
 const Home = () => {
   // session 2s and 3s included
   // a file containing data for each task of a particular session
@@ -1922,6 +2379,8 @@ const Home = () => {
         Users
       </button>
       <div>
+        <h1>Task 3</h1>
+        <button onClick={() => task3Features()}>Task3</button>
         <h1>Temporal</h1>
         <h2>UD</h2>
         <button onClick={() => UD({ task: "1" })}>Task1</button>
@@ -1943,7 +2402,7 @@ const Home = () => {
         <button onClick={() => UU({ task: "2a" })}>Task2a</button>
         <button onClick={() => UU({ task: "2b" })}>Task2b</button>
         <button onClick={() => UU({ task: "2c" })}>Task2c</button>
-        <h2>DU negative</h2>
+        <h2>UU negative</h2>
         <button onClick={() => negUU({ task: "1" })}>Task1</button>
         <button onClick={() => negUU({ task: "2a" })}>Task2a</button>
         <button onClick={() => negUU({ task: "2b" })}>Task2b</button>

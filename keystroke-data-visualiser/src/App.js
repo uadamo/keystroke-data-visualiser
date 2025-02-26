@@ -20,13 +20,6 @@ class App extends Component {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/stats" element={<Home />} />
-          <Route path="/features" element={<Features />} />
-          <Route path="/database-stats" element={<DatabaseStatsPlot />} />
-          <Route path="/temporal-plot" element={<TemploralPlot />} />
-          <Route path="/accuracy-plot" element={<AccuracyPlot />} />
-          <Route path="/key-preference-plot" element={<KeyPreferencePlot />} />
-          <Route path="/reaction-time-plot" element={<ReactionTimePlot />} />
-          <Route path="/speed-plot" element={<SpeedPlot />} />
         </Routes>
       </>
     );
